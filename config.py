@@ -5,3 +5,5 @@ SENDER_EMAIL = 'saad17mughal@gmail.com'
 SENDER_PASSWORD = 'lahore@17'
 SUBJECT_EMAIL = "OTP"
 EMAIL_PASSWORD = 'wcse mvkc ekrf bjrf'
+USER_COLLECTION = 'User'
+COMMUNITY_COLLECTION = 'Community'
