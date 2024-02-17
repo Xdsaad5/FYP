@@ -1,34 +1,137 @@
 import json
-from flask import Blueprint, jsonify, request,current_app
+from flask import Blueprint, jsonify, request, current_app, session
 from authentication import search_user
-from db_handler import loadFirebaseCredential
+from db_handler import load_firebase_credential
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+import random
 community_blueprint = Blueprint('community', __name__)
-def create_community(comm_info):
+otp = 0000
+
+
+def generate_otp():
+    global otp
+    otp = random.randint(1000, 9999)
+    return otp
+
+
+def send_verification_email(receiver_email):
+    server = None
     try:
-        db = loadFirebaseCredential()
+        sender_email = current_app.config.get('SENDER_EMAIL')
+        sender_password = current_app.config.get('EMAIL_PASSWORD')
+        subject = current_app.config.get('SUBJECT_EMAIL')
+        global otp
+        otp = generate_otp()
+
+        # create the email object(MIME)
+        message = MIMEMultipart()
+        message['From'] = sender_email
+        message['To'] = receiver_email
+        message['Subject'] = subject
+
+        # attach the body to the email
+        message.attach(MIMEText(f"Hey,\nHere is your otp {str(otp)}.\nRegards,\nRouteMate.", 'plain'))
+
+        # establish a connection with the SMTP server
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(sender_email, sender_password)
+
+        server.sendmail(sender_email, receiver_email, message.as_string())      # sending email
+        return True
+    except Exception as e:
+        print(f"Error: {str(e)}")
+        return False
+    finally:
+        # Close the connection
+        server.quit()
+
+
+def already_exist_community(community_info):                            # this function checks if community  exist already or not
+    if not community_info:                                              # check if community(object) is null
+        return jsonify(message="Provided Community information isn't completed.")
+    status = search_user('name', community_info['name'], current_app.config.get('COMMUNITY_COLLECTION'))              # check whether community already exist or not?
+    if status > 0:
+        return jsonify(message="Community already exist.")
+    return True
+
+
+''' if user enter email then am sending him verification email and store user data 
+in his session so that if he verified then I can enter his community in my db'''
+
+
+def storing_community_information_in_session(comm_info):
+    try:
+        session['name'] = comm_info['name']
+        session['description'] = comm_info['description']
+        session['email'] = comm_info['email']
+        if comm_info['code']:
+            session['code'] = comm_info['code']
+        else:
+            session['code'] = None
+    except Exception as e:
+        return jsonify(message=str(e))
+
+
+@community_blueprint.route('/api/create/community/by/code', methods=['POST'])
+def create_community_by_code():
+    try:
+        com_info = json.loads(request.data)
+        status = already_exist_community(com_info)
+        if str(status) != "True":
+            return status
+        print(status)
+        db = load_firebase_credential()
         if not db:
             return jsonify(message="Error in creating community.")
         # community is our collection in firestore
         comm_ref = db.collection(current_app.config.get('COMMUNITY_COLLECTION'))
         # add the community data to Firestore
         community_data = {
-            'name': comm_info['name'],
-            'description': comm_info['description'],
-            'code': comm_info['code'],
+            'name': com_info['name'],
+            'description': com_info['description'],
+            'code': com_info['code'],
+            'email': None
         }
         # add the document to the 'community' collection
         comm_ref.add(community_data)
-        return jsonify(message="User successfully stored in Firestore")
+        return jsonify(message="True")
     except Exception as e:
-        return jsonify(Error=str(e))
-@community_blueprint.route('/createCommunity', methods=['POST'])
-def community_already_exist():
-    community_info = json.loads(request.data)
-    if not community_info:                                              #check if community(object) is null
-        return jsonify(Error="Provided Community information isn't completed.")
-    status = search_user('name',community_info['name'],current_app.config.get('COMMUNITY_COLLECTION'))              #check whether community already exist or not?
-    if status > 0:
-        return jsonify(message="Community already exist.")
-    create_community(community_info)
-    return jsonify(message="Community Successfully  created.")
+        return jsonify(message=str(e))
 
+
+@community_blueprint.route('/api/verified/community')
+def storing_verified_community():
+    try:
+        db = load_firebase_credential()
+        if not db:
+            return jsonify(message="Error in creating community.")
+        # community is our collection in firestore
+        comm_ref = db.collection(current_app.config.get('COMMUNITY_COLLECTION'))
+        # add the community data to Firestore
+        community_data = {
+            'name': session.get('name'),
+            'description': session.get('description'),
+            'code': session.get('code'),
+            'email': session.get('email')
+        }
+        # add the document to the 'community' collection
+        comm_ref.add(community_data)
+        return jsonify(message="True")
+    except Exception as e:
+        return jsonify(message=str(e))
+
+
+@community_blueprint.route('/api/getotp', methods=['POST'])
+def otp_for_community_creation():
+    community_info = json.loads(request.data)
+    status = already_exist_community(community_info)
+    if str(status) != 'True':
+        return status
+    # send user otp
+    send_verification_email(community_info['email'])
+    storing_community_information_in_session(community_info)
+    global otp
+    return jsonify(message=str(otp))
