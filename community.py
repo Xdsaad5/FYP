@@ -135,3 +135,26 @@ def otp_for_community_creation():
     storing_community_information_in_session(community_info)
     global otp
     return jsonify(message=str(otp))
+
+
+@community_blueprint.route('/api/search/community', methods=['POST'])
+def search_community():
+    try:
+        search_com = json.loads(request.data)
+        if not search_com:  # check if search(object) is null
+            return jsonify(message="Nothing Found")
+        db = load_firebase_credential()
+        collection_name = current_app.config.get('COMMUNITY_COLLECTION')
+        query = db.collection(collection_name).order_by('name')     # getting all the records from the database
+        result = query.get()
+        result_list=[]
+        for doc in result:
+            doc_data = doc.to_dict()
+            if  search_com['name'] in doc_data['name']:
+                result_list.append(doc_data)
+        print(result_list)
+        return jsonify(message=result_list)
+        # Check if there is at least one document matching the condition
+    except Exception as e:
+        print(str(e))
+        return jsonify(message=str(e))

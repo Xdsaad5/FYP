@@ -1,4 +1,3 @@
-
 from flask import Flask
 from community import community_blueprint
 from authentication import auth_blueprint
