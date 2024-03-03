@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request, json, current_app
+from flask import Blueprint, jsonify, request, json, current_app, session
 from db_handler import load_firebase_credential
 
 import re
@@ -42,7 +42,8 @@ def verify_new_user():
     status = search_user('email', signup_info['email'])         # check if email already exist or not
     if status > 0:
         return jsonify(message="User with this email is already exist.")
-    return signup(signup_info)                                         # if user is verified then we registered his information in firestore
+    return signup(signup_info)                                         # if user is verified then we registered his
+    # information in firestore
 
 
 @auth_blueprint.route('/api/storeSignup', methods=['POST'])
@@ -62,7 +63,7 @@ def signup(signup_info):
         }
         # add the document to the 'users' collection
         users_ref.add(user_data)
-        return jsonify(message="User successfully stored in Firestore")
+        return jsonify(message="True")
     except Exception as e:
         return jsonify(message=str(e))
 
@@ -78,8 +79,23 @@ def login():
                     where('password', '==', user_data['password']).limit(1))
         user_docs = user_ref.get()
         if len(user_docs) == 1:
+            session['login_email'] = user_data['email']                         # storing the session of user who
+            # after authentication
             return jsonify(message="True")
         else:
             return jsonify(message="False")
     except Exception as e:
         return jsonify(message=str(e))
+
+
+@auth_blueprint.route('/api/logout')
+def logout():
+    try:
+        email = session.get('login_email')
+        if email is None:
+            return jsonify(message="False")
+        session.clear()
+        return jsonify(message="True")
+    except Exception as e:
+        print(str(e))
+        return jsonify(message="False")
