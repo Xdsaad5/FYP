@@ -16,13 +16,13 @@ def generate_otp():
     return otp
 
 
-def search_community_by_code(code):
+def search_community_by_code(code,name):
     try:
         if not code:
             return False
         db = load_firebase_credential()
         collection_name = current_app.config.get('COMMUNITY_COLLECTION')
-        query = db.collection(collection_name).where('code', '==', code)
+        query = db.collection(collection_name).where('code', '==', code).where('name', '==', name)
         result = query.get()
         result = [doc.to_dict() for doc in result]
         if not result:
@@ -92,7 +92,8 @@ def storing_community_information_in_session(comm_info):
             session['code'] = None
         session['name'] = comm_info['name']
         session['description'] = comm_info['description']
-        session['email'] = comm_info['email']
+        session['domain'] = comm_info['domain']
+        session['owner_email']  = session.get('login_email')
     except Exception as e:
         return jsonify(message=str(e))
 
@@ -108,19 +109,19 @@ def create_community_by_code():
         status = already_exist_community(com_info)
         if str(status) != "True":
             return status
-        # print(status)
-        result = search_community_by_code(com_info['code'])
-        if result:
-            return jsonify(message="Community with this code already exist.")
         db = load_firebase_credential()
         # community is our collection in firestore
         comm_ref = db.collection(current_app.config.get('COMMUNITY_COLLECTION'))
+        domain = None
+        if com_info['domain']:
+            domain = com_info['domain']
         # add the community data to Firestore
         community_data = {
             'name': com_info['name'],
             'description': com_info['description'],
             'code': com_info['code'],
-            'email': session.get('login_email')
+            'owner_email': session.get('login_email'),
+            'domain':domain
         }
         # add the document to the 'community' collection
         comm_ref.add(community_data)
@@ -144,7 +145,8 @@ def storing_verified_community():
             'name': session.get('name'),
             'description': session.get('description'),
             'code': session.get('code'),
-            'email': session.get('email')
+            'owner_email': session.get('owner_email'),
+            'domain': session.get('domain')
         }
         # add the document to the 'community' collection
         comm_ref.add(community_data)
@@ -160,13 +162,8 @@ def otp_for_community_creation():
     status = already_exist_community(community_info)
     if str(status) != 'True':
         return status
-    # this function will check if there exist already community with same code
-    result = search_community_by_code(community_info['code'])
-    # if community exist with same code then we should tell him to provide different code
-    if result:
-        return jsonify(message="Community with this code already exist.")
     # send user otp
-    send_verification_email(community_info['email'])
+    send_verification_email(community_info['domain'])
     storing_community_information_in_session(community_info)
     global otp
     return jsonify(message=str(otp))
@@ -204,6 +201,26 @@ def my_created_community():
             return jsonify(message="False")
         db = load_firebase_credential()
         collection_name = current_app.config.get('COMMUNITY_COLLECTION')
+        query = db.collection(collection_name).where('owner_email', '==', email)
+        result = query.get()
+        result_list = []
+        for doc in result:
+            doc_data = doc.to_dict()
+            result_list.append(doc_data)
+        return jsonify(message=result_list)
+    except Exception as e:
+        print(str(e))
+        return jsonify(message="False")
+
+
+@community_blueprint.route('/api/my/joined/community')
+def my_joined_communities():
+    try:
+        email = session.get('login_email')
+        if email is None:
+            return jsonify(message="False")
+        db = load_firebase_credential()
+        collection_name = current_app.config.get('JOIN_COMMUNITIES_COLLECTION')
         query = db.collection(collection_name).where('email', '==', email)
         result = query.get()
         result_list = []
@@ -224,17 +241,17 @@ def join_community():
     try:
         temp = json.loads(request.data)
         code = temp['code']
-        result = search_community_by_code(code)
+        com_name = temp['name']
+        result = search_community_by_code(code,com_name)
         print("join_community: ", result)
         if not result:
             return jsonify(message="False")
         db = load_firebase_credential()
-        comm_name = result[0]['name']
         collection_name = current_app.config.get("JOIN_COMMUNITIES_COLLECTION")
         ref = db.collection(collection_name)
         data = {
             'email': session.get('login_email'),
-            'community_name': comm_name
+            'community_name': com_name
         }
         ref.add(data)
         return jsonify(message="True")
