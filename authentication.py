@@ -1,19 +1,12 @@
 from flask import Blueprint, jsonify, request, json, current_app, session
 from db_handler import load_firebase_credential
-
+from community import search_user,my_created_community,my_joined_communities
 import re
 
 auth_blueprint = Blueprint('authentication', __name__)
 
 
-def search_user(field, value, collection_name=None):
-    db = load_firebase_credential()
-    collection_name = collection_name or current_app.config.get('USER_COLLECTION')
-    query = db.collection(collection_name).where(field, '==', value).limit(1)
-    result = query.get()
 
-    # Check if there is at least one document matching the condition
-    return len(result)
 
 
 def is_valid_email(email):
@@ -81,7 +74,14 @@ def login():
         if len(user_docs) == 1:
             session['login_email'] = user_data['email']                         # storing the session of user who
             # after authentication
-            return jsonify(message="True")
+            my_community = my_created_community()
+            joined_community = my_joined_communities()
+            data = {
+                'created_community':my_community,
+                'joined_community':joined_community
+            }
+            print(data)
+            return jsonify(message=data)
         else:
             return jsonify(message="False")
     except Exception as e:

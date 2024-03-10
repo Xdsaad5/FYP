@@ -1,6 +1,5 @@
 import json
 from flask import Blueprint, jsonify, request, current_app, session
-from authentication import search_user
 from db_handler import load_firebase_credential
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -16,7 +15,17 @@ def generate_otp():
     return otp
 
 
-def search_community_by_code(code,name):
+def search_user(field, value, collection_name=None):
+    db = load_firebase_credential()
+    collection_name = collection_name or current_app.config.get('USER_COLLECTION')
+    query = db.collection(collection_name).where(field, '==', value).limit(1)
+    result = query.get()
+
+    # Check if there is at least one document matching the condition
+    return len(result)
+
+
+def search_community_by_code(code, name):
     try:
         if not code:
             return False
@@ -93,7 +102,7 @@ def storing_community_information_in_session(comm_info):
         session['name'] = comm_info['name']
         session['description'] = comm_info['description']
         session['domain'] = comm_info['domain']
-        session['owner_email']  = session.get('login_email')
+        session['owner_email'] = session.get('login_email')
     except Exception as e:
         return jsonify(message=str(e))
 
@@ -112,7 +121,7 @@ def create_community_by_code():
         db = load_firebase_credential()
         # community is our collection in firestore
         comm_ref = db.collection(current_app.config.get('COMMUNITY_COLLECTION'))
-        domain = None
+        domain = None                       # it is just for help if domain doesn't come then we use this
         if com_info['domain']:
             domain = com_info['domain']
         # add the community data to Firestore
@@ -121,8 +130,9 @@ def create_community_by_code():
             'description': com_info['description'],
             'code': com_info['code'],
             'owner_email': session.get('login_email'),
-            'domain':domain
+            'domain': domain
         }
+        print(community_data)
         # add the document to the 'community' collection
         comm_ref.add(community_data)
         return jsonify(message="True")
@@ -206,8 +216,11 @@ def my_created_community():
         result_list = []
         for doc in result:
             doc_data = doc.to_dict()
-            result_list.append(doc_data)
-        return jsonify(message=result_list)
+            temp = {
+                "name": doc_data['name']
+            }
+            result_list.append(temp)
+        return result_list
     except Exception as e:
         print(str(e))
         return jsonify(message="False")
@@ -226,26 +239,24 @@ def my_joined_communities():
         result_list = []
         for doc in result:
             doc_data = doc.to_dict()
-            result_list.append(doc_data)
-        return jsonify(message=result_list)
+            temp = {
+                "name": doc_data['community_name']
+            }
+            result_list.append(temp)
+        return result_list
     except Exception as e:
         print(str(e))
         return jsonify(message="False")
 
 
-# join community by using code
+# join community
 
 
 @community_blueprint.route('/api/join/community', methods=['POST'])
 def join_community():
     try:
         temp = json.loads(request.data)
-        code = temp['code']
         com_name = temp['name']
-        result = search_community_by_code(code,com_name)
-        print("join_community: ", result)
-        if not result:
-            return jsonify(message="False")
         db = load_firebase_credential()
         collection_name = current_app.config.get("JOIN_COMMUNITIES_COLLECTION")
         ref = db.collection(collection_name)
@@ -258,3 +269,23 @@ def join_community():
     except Exception as e:
         print(str(e))
         return jsonify(message="False")
+
+
+# get all community
+
+@community_blueprint.route('/api/get/all/community')
+def all_community():
+    try:
+        db = load_firebase_credential()
+        collection_name = current_app.config.get('COMMUNITY_COLLECTION')
+        query = db.collection(collection_name)
+        result = query.get()
+        result_list = []
+        for doc in result:
+            doc_data = doc.to_dict()
+            result_list.append(doc_data)
+        print(result_list)
+        return jsonify(message=result_list)
+    except Exception as e:
+        print(str(e))
+        return jsonify(message="No Community Exist.")
