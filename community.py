@@ -5,7 +5,7 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 import random
-community_blueprint = Blueprint('community', __name__)
+community_app = Blueprint('community', __name__)
 otp = 0000
 
 
@@ -99,9 +99,9 @@ def storing_community_information_in_session(comm_info):
             session['code'] = comm_info['code']
         else:
             session['code'] = None
-        session['name'] = comm_info['name']
-        session['description'] = comm_info['description']
-        session['domain'] = comm_info['domain']
+        session['created_community_name'] = comm_info['name']
+        session['created_community_description'] = comm_info['description']
+        session['created_community_domain'] = comm_info['domain']
         session['owner_email'] = session.get('login_email')
     except Exception as e:
         return jsonify(message=str(e))
@@ -111,7 +111,7 @@ def storing_community_information_in_session(comm_info):
  session so that we can get all the community created by him'''
 
 
-@community_blueprint.route('/api/create/community/by/code', methods=['POST'])
+@community_app.route('/api/create/community/by/code', methods=['POST'])
 def create_community_by_code():
     try:
         com_info = json.loads(request.data)
@@ -135,6 +135,13 @@ def create_community_by_code():
         print(community_data)
         # add the document to the 'community' collection
         comm_ref.add(community_data)
+        # add the document to the 'JOIN_COMMUNITIES' collection
+        comm_ref = db.collection(current_app.config.get('JOIN_COMMUNITIES_COLLECTION'))
+        data = {
+            'community_name': com_info['name'],
+            'email': session.get('login_email')
+        }
+        comm_ref.add(data)
         return jsonify(message="True")
     except Exception as e:
         return jsonify(message=str(e))
@@ -142,7 +149,7 @@ def create_community_by_code():
 
 # this function will store user created community in db after verification of otp
 
-@community_blueprint.route('/api/verified/community')
+@community_app.route('/api/verified/community')
 def storing_verified_community():
     try:
         db = load_firebase_credential()
@@ -152,21 +159,27 @@ def storing_verified_community():
         comm_ref = db.collection(current_app.config.get('COMMUNITY_COLLECTION'))
         # add the community data to Firestore
         community_data = {
-            'name': session.get('name'),
-            'description': session.get('description'),
+            'name': session.get('created_community_name'),
+            'description': session.get('created_community_description'),
             'code': session.get('code'),
             'owner_email': session.get('owner_email'),
-            'domain': session.get('domain')
+            'domain': session.get('created_community_domain')
         }
         # add the document to the 'community' collection
         comm_ref.add(community_data)
+        comm_ref = db.collection(current_app.config.get('JOIN_COMMUNITIES_COLLECTION'))
+        data = {
+            'community_name': session.get('created_community_name'),
+            'email': session.get('login_email')
+        }
+        comm_ref.add(data)
         return jsonify(message="True")
     except Exception as e:
         return jsonify(message=str(e))
 
 
 # this function will verify whether a person has valid email-domain or not
-@community_blueprint.route('/api/getotp', methods=['POST'])
+@community_app.route('/api/getotp', methods=['POST'])
 def otp_for_community_creation():
     community_info = json.loads(request.data)
     status = already_exist_community(community_info)
@@ -178,8 +191,10 @@ def otp_for_community_creation():
     global otp
     return jsonify(message=str(otp))
 
+# we are not using this function
 
-@community_blueprint.route('/api/search/community', methods=['POST'])
+
+@community_app.route('/api/search/community', methods=['POST'])
 def search_community():
     try:
         search_com = json.loads(request.data)
@@ -203,7 +218,7 @@ def search_community():
 
 # this function will return the communities which one user made itself
 
-@community_blueprint.route('/api/my/created/community')
+@community_app.route('/api/my/created/community')
 def my_created_community():
     try:
         email = session.get('login_email')
@@ -226,7 +241,7 @@ def my_created_community():
         return jsonify(message="False")
 
 
-@community_blueprint.route('/api/my/joined/community')
+@community_app.route('/api/my/joined/community')
 def my_joined_communities():
     try:
         email = session.get('login_email')
@@ -249,31 +264,9 @@ def my_joined_communities():
         return jsonify(message="False")
 
 
-# join community
-
-
-@community_blueprint.route('/api/join/community', methods=['POST'])
-def join_community():
-    try:
-        temp = json.loads(request.data)
-        com_name = temp['name']
-        db = load_firebase_credential()
-        collection_name = current_app.config.get("JOIN_COMMUNITIES_COLLECTION")
-        ref = db.collection(collection_name)
-        data = {
-            'email': session.get('login_email'),
-            'community_name': com_name
-        }
-        ref.add(data)
-        return jsonify(message="True")
-    except Exception as e:
-        print(str(e))
-        return jsonify(message="False")
-
-
 # get all community
 
-@community_blueprint.route('/api/get/all/community')
+@community_app.route('/api/get/all/community')
 def all_community():
     try:
         db = load_firebase_credential()
@@ -289,3 +282,65 @@ def all_community():
     except Exception as e:
         print(str(e))
         return jsonify(message="No Community Exist.")
+
+
+def already_joined_in_community(name, email):
+    try:
+        db = load_firebase_credential()
+        collection_name = current_app.config.get('JOIN_COMMUNITIES_COLLECTION')
+        query = db.collection(collection_name).where('email', '==', email).where('community_name', '==', name).limit(1)
+        result = query.get()
+        if len(result) == 0:
+            return True
+        return False
+    except Exception as e:
+        print(str(e))
+
+# get all the members of the community and add him in that community
+
+
+@community_app.route('/api/join/community', methods=['POST'])
+def join_community():
+    try:
+        com_name = json.loads(request.data)
+        status = already_joined_in_community(com_name['name'], session.get('login_email'))
+        if not status:
+            return jsonify(message=False)
+        db = load_firebase_credential()
+        collection_name = current_app.config.get('JOIN_COMMUNITIES_COLLECTION')
+        ref = db.collection(collection_name)
+        data = {
+            'email': session.get('login_email'),
+            'community_name': com_name['name']
+        }
+        ref.add(data)
+        return get_all_members(com_name['name'])
+    except Exception as e:
+        print(str(e))
+        return jsonify(message="False")
+
+
+# get all members of the community:
+
+
+@community_app.route('/api/get/all/members', methods=['POST'])
+def get_all_members(com_name=None):
+    try:
+        if not com_name:
+            temp = json.loads(request.data)
+            com_name = temp['name']
+        db = load_firebase_credential()
+        collection_name = current_app.config.get('JOIN_COMMUNITIES_COLLECTION')
+        query = db.collection(collection_name).where('community_name', '==', com_name)
+        result = query.get()
+        result_list = []
+        for doc in result:
+            doc_data = doc.to_dict()
+            temp = {
+                "name": doc_data['email'].split('@')[0]
+            }
+            result_list.append(temp)
+        return jsonify(message=result_list)
+    except Exception as e:
+        print(str(e))
+        return jsonify(message=False)

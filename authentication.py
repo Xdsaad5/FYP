@@ -1,12 +1,8 @@
 from flask import Blueprint, jsonify, request, json, current_app, session
 from db_handler import load_firebase_credential
-from community import search_user,my_created_community,my_joined_communities
+from community import search_user, my_created_community, my_joined_communities
 import re
-
-auth_blueprint = Blueprint('authentication', __name__)
-
-
-
+auth_app = Blueprint('authentication', __name__)
 
 
 def is_valid_email(email):
@@ -20,12 +16,12 @@ def is_valid_email(email):
     return bool(match)
 
 
-@auth_blueprint.route('/')
+@auth_app.route('/')
 def home_page():
     return jsonify(message="Welcome To RouteMate")
 
 
-@auth_blueprint.route('/api/verification', methods=['POST'])
+@auth_app.route('/api/verification', methods=['POST'])
 def verify_new_user():
     signup_info = json.loads(request.data)
     if not is_valid_email(signup_info['email']):
@@ -39,7 +35,7 @@ def verify_new_user():
     # information in firestore
 
 
-@auth_blueprint.route('/api/storeSignup', methods=['POST'])
+@auth_app.route('/api/signup', methods=['POST'])
 def signup(signup_info):
     try:
         db = load_firebase_credential()
@@ -61,7 +57,7 @@ def signup(signup_info):
         return jsonify(message=str(e))
 
 
-@auth_blueprint.route('/api/login', methods=['POST'])
+@auth_app.route('/api/login', methods=['POST'])
 def login():
     try:
         user_data = json.loads(request.data)
@@ -69,18 +65,20 @@ def login():
             return jsonify(message="Enter credential required for login.")
         db = load_firebase_credential()
         user_ref = (db.collection(current_app.config.get('USER_COLLECTION')).where('email', '==', user_data['email']).
-                    where('password', '==', user_data['password']).limit(1))
+                    where('password', '==', user_data['password']))
         user_docs = user_ref.get()
-        if len(user_docs) == 1:
-            session['login_email'] = user_data['email']                         # storing the session of user who
+        if user_docs:
+            temp = [doc.to_dict() for doc in user_docs]
+            session['login_email'] = temp[0]['email']
+            session['login_name'] = temp[0]['name']
+            session['contact'] = temp[0]['contact']
             # after authentication
             my_community = my_created_community()
             joined_community = my_joined_communities()
             data = {
-                'created_community':my_community,
-                'joined_community':joined_community
+                'created_community': my_community,
+                'joined_community': joined_community
             }
-            print(data)
             return jsonify(message=data)
         else:
             return jsonify(message="False")
@@ -88,7 +86,7 @@ def login():
         return jsonify(message=str(e))
 
 
-@auth_blueprint.route('/api/logout')
+@auth_app.route('/api/logout')
 def logout():
     try:
         email = session.get('login_email')
