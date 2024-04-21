@@ -5,9 +5,9 @@ class Driver:
         self.contact = c
         self.vehicle = veh
         if veh.lower() == 'car':
-            self.available_seats = 4
+            self.total_seats = 4
         else:
-            self.available_seats = 2
+            self.total_seats = 2
 
     def dict(self):
         return {
@@ -15,5 +15,5 @@ class Driver:
             'email': self.email,
             'contact': self.contact,
             'vehicle': self.vehicle,
-            'seats': self.available_seats
+            'total_seats': self.total_seats
         }

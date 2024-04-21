@@ -1,4 +1,5 @@
 from flask import Flask
+
 from community import community_app
 from authentication import auth_app
 from ride_management import ride_app

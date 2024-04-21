@@ -35,7 +35,6 @@ def verify_new_user():
     # information in firestore
 
 
-@auth_app.route('/api/signup', methods=['POST'])
 def signup(signup_info):
     try:
         db = load_firebase_credential()

@@ -277,7 +277,7 @@ def all_community():
         for doc in result:
             doc_data = doc.to_dict()
             result_list.append(doc_data)
-        print(result_list)
+        #print(result_list)
         return jsonify(message=result_list)
     except Exception as e:
         print(str(e))
@@ -344,3 +344,6 @@ def get_all_members(com_name=None):
     except Exception as e:
         print(str(e))
         return jsonify(message=False)
+
+
+
