@@ -74,6 +74,7 @@ def login():
             # after authentication
             my_community = my_created_community()
             joined_community = my_joined_communities()
+            
             data = {
                 'created_community': my_community,
                 'joined_community': joined_community

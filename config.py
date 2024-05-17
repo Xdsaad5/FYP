@@ -10,3 +10,9 @@ COMMUNITY_COLLECTION = 'Community'
 JOIN_COMMUNITIES_COLLECTION = 'JOIN_COMMUNITIES'
 AVAILABLE_DRIVERS = 'AvailableDrivers'
 BOOKED_RIDES = 'Booked_Ride_Details'
+
+SESSION_TYPE = 'filesystem'  # Options include 'filesystem', 'redis', 'memcached', etc.
+SESSION_PERMANENT = False
+SESSION_USE_SIGNER = True  # This will add an additional layer of security.
+SESSION_KEY_PREFIX = 'route_mate:'  # Optional, but recommended for distinguishing your app's sessions.
+

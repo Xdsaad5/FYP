@@ -141,6 +141,7 @@ def create_community_by_code():
             'community_name': com_info['name'],
             'email': session.get('login_email')
         }
+        print('session.get(login_email)',session.get('login_email'))
         comm_ref.add(data)
         return jsonify(message="True")
     except Exception as e:
@@ -173,6 +174,7 @@ def storing_verified_community():
             'email': session.get('login_email')
         }
         comm_ref.add(data)
+        print(session.get('login_email'))
         return jsonify(message="True")
     except Exception as e:
         return jsonify(message=str(e))
